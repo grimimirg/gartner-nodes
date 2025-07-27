@@ -6,13 +6,15 @@
 #include <LittleFS.h>
 #include <vector>
 
+using std::vector;
+
 /* ─────────────────────────────
    Pinout & Constants
    ───────────────────────────── */
 #define LORA_SS    18
 #define LORA_RST   14
 #define LORA_DIO0  26
-#define LORA_FREQ  868E6          // EU band, change if needed
+#define LORA_FREQ  868E6          // EU band
 
 const char* WIFI_SSID = "[change_it]";
 const char* WIFI_PASS = "[change_it]";
@@ -29,22 +31,54 @@ const char INVALID_API[]  = "{\"error\":\"Invalid API\"}";
 const char INVALID_JSON[] = "{\"error\":\"Invalid JSON\"}";
 const char MISSING_BODY[] = "{\"error\":\"Missing body\"}";
 
+/* scheduler */
+unsigned long lastCheck = 0;
+const unsigned long checkInterval = 10UL * 60UL * 1000UL;  // 10 minutes
+
 /* ─────────────────────────────
-   ProgramRule Model
+   Models
    ───────────────────────────── */
 struct ProgramRule {
-  String sensor;
-  String zone;
-  String op;
-  float  value;
-  String command;
-  String actionZone;
-  uint16_t duration;
-  String durationUnit;
+  String   sensor;
+  String   zone;
+  String   op;
+  float    value;
+  String   command;
+  String   actionZone;
+  uint32_t durationMs;
 };
 
-/* Web server */
+struct SensorStats {
+  float temperature = 0;
+  float humidity    = 0;
+  float light       = 0;
+  unsigned long timestamp = 0;
+};
+
+/* ─────────────────────────────
+   Globals
+   ───────────────────────────── */
+SensorStats currentStats;
 WebServer server(80);
+vector<ProgramRule> ruleList;
+
+/* ─────────────────────────────
+   Forward Declarations
+   ───────────────────────────── */
+void setupLoRa();
+void setLoRaReceiveMode();
+void onSensorPacketReceived(int packetSize);
+void onSensorJson(const String& json);
+void connectToWifi();
+void prepareFS();
+void saveProgram();
+void persistProgram(const String& jsonProgram);
+void executeProgram();
+vector<ProgramRule> buildRuleList(const JsonDocument& programDoc);
+void checkRules(const vector<ProgramRule>& rules);
+void sendLoRaCommand(uint8_t nodeId, const String& action);
+void markProgramUpdated(bool flag);
+bool readProgramUpdated();
 
 /* ─────────────────────────────
    SETUP
@@ -52,15 +86,19 @@ WebServer server(80);
 void setup() {
   Serial.begin(115200);
 
-  setupLoRa();
-  connectToWifi();
   prepareFS();
+  setupLoRa();
+  setLoRaReceiveMode();
+  connectToWifi();
+
+  ruleList.clear();
+  // initially mark as executed
+  markProgramUpdated(false);
 
   server.on("/saveProgram", HTTP_POST, saveProgram);
   server.onNotFound([]() {
     server.send(int(HttpStatus::NOT_FOUND), CONTENT_JSON, INVALID_API);
   });
-
   server.begin();
   Serial.println("Web server started!");
 }
@@ -70,6 +108,14 @@ void setup() {
    ───────────────────────────── */
 void loop() {
   server.handleClient();
+
+  unsigned long now = millis();
+  if (now - lastCheck >= checkInterval) {
+    lastCheck = now;
+    if (readProgramUpdated()) {
+      executeProgram();
+    }
+  }
 }
 
 /* ─────────────────────────────
@@ -81,8 +127,36 @@ void setupLoRa() {
     Serial.println("LoRa init failed");
     while (true) delay(1000);
   }
-
   Serial.println("LoRa ready!");
+}
+
+void setLoRaReceiveMode() {
+  LoRa.onReceive(onSensorPacketReceived);
+  LoRa.receive();
+}
+
+void onSensorPacketReceived(int packetSize) {
+  if (packetSize == 0) return;
+  String payload;
+  while (LoRa.available()) {
+    payload += (char)LoRa.read();
+  }
+  Serial.print("Received LoRa: ");
+  Serial.println(payload);
+  onSensorJson(payload);
+  LoRa.receive();  // re-enter receive mode
+}
+
+void onSensorJson(const String& json) {
+  StaticJsonDocument<128> doc;
+  if (deserializeJson(doc, json)) {
+    Serial.println("Sensor JSON parse error!");
+    return;
+  }
+  currentStats.timestamp   = millis();
+  currentStats.temperature = doc["temperature"] | currentStats.temperature;
+  currentStats.humidity    = doc["humidity"]    | currentStats.humidity;
+  currentStats.light       = doc["light"]       | currentStats.light;
 }
 
 void connectToWifi() {
@@ -92,7 +166,6 @@ void connectToWifi() {
     Serial.print('.');
     delay(500);
   }
-
   Serial.print("\nWi‑Fi connected ‑ IP: ");
   Serial.println(WiFi.localIP());
 }
@@ -100,9 +173,9 @@ void connectToWifi() {
 void prepareFS() {
   if (!LittleFS.begin(true)) {
     Serial.println("LittleFS mount failed");
-  } else {
-    Serial.println("LittleFS mounted!");
+    while (true) delay(1000);
   }
+  Serial.println("LittleFS mounted!");
 }
 
 void saveProgram() {
@@ -110,89 +183,88 @@ void saveProgram() {
     server.send(int(HttpStatus::BAD_REQUEST), CONTENT_JSON, MISSING_BODY);
     return;
   }
-
   String body = server.arg("plain");
-  StaticJsonDocument<256> doc;
-  DeserializationError err = deserializeJson(doc, body);
+  StaticJsonDocument<512> doc;
+  auto err = deserializeJson(doc, body);
   if (err) {
     server.send(int(HttpStatus::BAD_REQUEST), CONTENT_JSON, INVALID_JSON);
     return;
   }
-
   persistProgram(body);
   server.send(int(HttpStatus::OK), CONTENT_JSON, "{\"status\":\"ok\"}");
 }
 
 void persistProgram(const String& jsonProgram) {
-  File programFile = LittleFS.open("/program.json", FILE_APPEND);
-
-  if (!programFile) {
+  File f = LittleFS.open("/program.json", FILE_WRITE);
+  if (!f) {
     Serial.println("Failed opening '/program.json'");
     return;
   }
-
-  programFile.println(jsonProgram);
-  programFile.close();
-
+  f.print(jsonProgram);
+  f.close();
+  markProgramUpdated(true);
   Serial.println("Program saved!");
 }
 
 void executeProgram() {
-  File programFile = LittleFS.open("/program.json", "r");
-  if (!programFile) {
+  File f = LittleFS.open("/program.json", "r");
+  if (!f) {
     Serial.println("Failed to open '/program.json'");
     return;
   }
-
-  DynamicJsonDocument programDoc(1024);
-  DeserializationError parseError = deserializeJson(programDoc, programFile);
-
-  programFile.close();
-
-  if (parseError) {
+  DynamicJsonDocument doc(1024);
+  auto err = deserializeJson(doc, f);
+  f.close();
+  if (err) {
     Serial.print("JSON parse error: ");
-    Serial.println(parseError.c_str());
+    Serial.println(err.c_str());
     return;
   }
-
-  std::vector<ProgramRule> ruleList = buildRuleList(programDoc);
-  for (const ProgramRule& rule : ruleList) {
-    Serial.printf("IF %s %s %s %.1f ⇒ %s %s for %u %s\n",
-                  rule.sensor.c_str(), rule.zone.c_str(),
-                  rule.op.c_str(), rule.value,
-                  rule.command.c_str(), rule.actionZone.c_str(),
-                  rule.duration, rule.durationUnit.c_str());
-  }
+  ruleList = buildRuleList(doc);
+  checkRules(ruleList);
+  // after execution, reset flag
+  markProgramUpdated(false);
 }
 
-std::vector<ProgramRule> buildRuleList(const JsonDocument& programDoc) {
-  std::vector<ProgramRule> rules;
-
-  JsonArray  conditionsArray = programDoc["conditions"].as<JsonArray>();
-  JsonObject actionObject    = programDoc["action"];
-
-  String   command        = actionObject["command"].as<String>();
-  String   targetZone     = actionObject["zone"].as<String>();
-  uint16_t actionDuration = actionObject["duration"]["value"];
-  String   durationUnit   = actionObject["duration"]["unit"].as<String>();
-
-  for (JsonObject conditionObj : conditionsArray) {
-    ProgramRule rule;
-
-    rule.sensor       = conditionObj["sensor"].as<String>();
-    rule.zone         = conditionObj["zone"].as<String>();
-    rule.op           = conditionObj["operator"].as<String>();
-    rule.value        = conditionObj["value"];
-
-    rule.command      = command;
-    rule.actionZone   = targetZone;
-    rule.duration     = actionDuration;
-    rule.durationUnit = durationUnit;
-
-    rules.push_back(std::move(rule));
+vector<ProgramRule> buildRuleList(const JsonDocument& doc) {
+  vector<ProgramRule> rules;
+  JsonArray  conds = doc["conditions"].as<JsonArray>();
+  JsonObject act   = doc["action"];
+  uint32_t   durMs = act["duration"]["value"].as<uint32_t>() * 1000UL;
+  for (JsonObject c : conds) {
+    ProgramRule r;
+    r.sensor     = c["sensor"].as<String>();
+    r.zone       = c["zone"].as<String>();
+    r.op         = c["operator"].as<String>();
+    r.value      = c["value"].as<float>();
+    r.command    = act["command"].as<String>();
+    r.actionZone = act["zone"].as<String>();
+    r.durationMs = durMs;
+    rules.push_back(std::move(r));
   }
-  
   return rules;
+}
+
+void checkRules(const vector<ProgramRule>& rules) {
+  for (const auto& r : rules) {
+    float actual = 0;
+    if      (r.sensor == "temperature") actual = currentStats.temperature;
+    else if (r.sensor == "humidity")    actual = currentStats.humidity;
+    else if (r.sensor == "light")       actual = currentStats.light;
+    bool match = false;
+    if      (r.op == ">")  match = actual >  r.value;
+    else if (r.op == "<")  match = actual <  r.value;
+    else if (r.op == ">=") match = actual >= r.value;
+    else if (r.op == "<=") match = actual <= r.value;
+    else if (r.op == "==") match = actual == r.value;
+    else if (r.op == "!=") match = actual != r.value;
+    if (match) {
+      String cmd = r.actionZone + ":open:" + String(r.durationMs);
+      sendLoRaCommand(1, cmd);
+      Serial.printf("Rule fired: %s %s %s %.1f\n",
+                    r.sensor.c_str(), r.op.c_str(), r.actionZone.c_str(), r.value);
+    }
+  }
 }
 
 void sendLoRaCommand(uint8_t nodeId, const String& action) {
@@ -201,4 +273,26 @@ void sendLoRaCommand(uint8_t nodeId, const String& action) {
   LoRa.print(msg);
   LoRa.endPacket();
   Serial.printf("Sent \"%s\"\n", msg.c_str());
+}
+
+void markProgramUpdated(bool flag) {
+  File f = LittleFS.open("/program-updated", FILE_WRITE);
+  if (!f) {
+    Serial.println("Error opening '/program-updated'");
+    return;
+  }
+  f.print(flag ? '1' : '0');
+  f.close();
+}
+
+bool readProgramUpdated() {
+  File f = LittleFS.open("/program-updated", FILE_READ);
+  if (!f) {
+    Serial.println("Error opening '/program-updated'");
+    return false;
+  }
+  String s = f.readStringUntil('\n');
+  f.close();
+  s.trim();
+  return (s == "1");
 }
