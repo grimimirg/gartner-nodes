@@ -63,8 +63,6 @@ SensorStats currentStats;
 WebServer server(80);
 vector<ProgramRule> ruleList;
 
-//----------------------------------------------------------------------------------
-
 /* ─────────────────────────────
    SETUP
    ───────────────────────────── */
@@ -103,8 +101,6 @@ void loop() {
   }
 }
 
-//----------------------------------------------------------------------------------
-
 /* ─────────────────────────────
    FUNCTIONS
    ───────────────────────────── */
@@ -115,23 +111,25 @@ void onSensorPacketReceived(int packetSize) {
     payload += (char)LoRa.read();
   }
 
-  Serial.print("Received LoRa: ");
-  Serial.println(payload);
   onSensorJson(payload);
   LoRa.receive();  // re-enter receive mode
 }
 
-void onSensorJson(const String& json) {
-  StaticJsonDocument<128> doc;
-  if (deserializeJson(doc, json)) {
-    Serial.println("Sensor JSON parse error!");
-    return;
-  }
+void onSensorJson(const String& payload) {
+  // check wether the packet is addressed to "master-node"
+  if (incoming.indexOf("master-node") != -1) {
 
-  currentStats.timestamp   = millis();
-  currentStats.temperature = doc["temperature"] | currentStats.temperature;
-  currentStats.humidity    = doc["humidity"]    | currentStats.humidity;
-  currentStats.light       = doc["light"]       | currentStats.light;
+    StaticJsonDocument<128> doc;
+    if (deserializeJson(doc, payload)) {
+      Serial.println("Sensor JSON parse error!");
+      return;
+    }
+
+    currentStats.timestamp   = millis();
+    currentStats.temperature = doc["temperature"] | currentStats.temperature;
+    currentStats.humidity    = doc["humidity"]    | currentStats.humidity;
+    currentStats.light       = doc["light"]       | currentStats.light;
+  }
 }
 
 void saveProgram() {
@@ -234,6 +232,7 @@ void sendLoRaCommand(const String& nodeId, const String& payload) {
   Serial.printf("Successfully sent payload to %s: %s\n", nodeId.c_str(), payload.c_str());
 }
 
+//----------------------------------------------------------------------------------
 /* Utilities */
 //----------------------------------------------------------------------------------
 void prepareFS() {
