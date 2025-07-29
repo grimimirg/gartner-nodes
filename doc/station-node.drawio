@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0" version="28.0.7">
+  <diagram name="Page-1" id="F_mcUgNNdU5UnlqZJWno">
+    <mxGraphModel dx="1426" dy="722" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="850" pageHeight="1100" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="-oepTnSFtZujDYaPxMJw-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="-oepTnSFtZujDYaPxMJw-2" target="-oepTnSFtZujDYaPxMJw-4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="-oepTnSFtZujDYaPxMJw-2" value="Start" style="ellipse;whiteSpace=wrap;html=1;aspect=fixed;fillColor=#60a917;fontColor=#ffffff;strokeColor=#2D7600;" vertex="1" parent="1">
+          <mxGeometry x="385" y="40" width="80" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="-oepTnSFtZujDYaPxMJw-3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="1" source="-oepTnSFtZujDYaPxMJw-4" target="-oepTnSFtZujDYaPxMJw-11">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="-oepTnSFtZujDYaPxMJw-4" value="" style="swimlane;startSize=0;fillColor=#1ba1e2;fontColor=#ffffff;strokeColor=#006EAF;" vertex="1" parent="1">
+          <mxGeometry x="308" y="200" width="235" height="260" as="geometry" />
+        </mxCell>
+        <mxCell id="-oepTnSFtZujDYaPxMJw-5" value="&lt;div&gt;setup()&lt;/div&gt;" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="-oepTnSFtZujDYaPxMJw-4">
+          <mxGeometry x="162" y="10" width="60" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="-oepTnSFtZujDYaPxMJw-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="-oepTnSFtZujDYaPxMJw-4" source="-oepTnSFtZujDYaPxMJw-7" target="-oepTnSFtZujDYaPxMJw-9">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="-oepTnSFtZujDYaPxMJw-7" value="Init serial" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#a0522d;fontColor=#ffffff;strokeColor=#6D1F00;" vertex="1" parent="-oepTnSFtZujDYaPxMJw-4">
+          <mxGeometry x="25" y="20" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="-oepTnSFtZujDYaPxMJw-8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="-oepTnSFtZujDYaPxMJw-4" source="-oepTnSFtZujDYaPxMJw-9" target="-oepTnSFtZujDYaPxMJw-10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="-oepTnSFtZujDYaPxMJw-9" value="Activate DHT22" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#76608a;fontColor=#ffffff;strokeColor=#432D57;" vertex="1" parent="-oepTnSFtZujDYaPxMJw-4">
+          <mxGeometry x="25" y="100" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="-oepTnSFtZujDYaPxMJw-10" value="&lt;div&gt;Setup LoRa&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#6d8764;fontColor=#ffffff;strokeColor=#3A5431;" vertex="1" parent="-oepTnSFtZujDYaPxMJw-4">
+          <mxGeometry x="25" y="180" width="120" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="-oepTnSFtZujDYaPxMJw-11" value="" style="swimlane;startSize=0;fillColor=#a20025;fontColor=#ffffff;strokeColor=#6F0000;" vertex="1" parent="1">
+          <mxGeometry x="308" y="520" width="235" height="330" as="geometry" />
+        </mxCell>
+        <mxCell id="-oepTnSFtZujDYaPxMJw-12" value="loop()" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="-oepTnSFtZujDYaPxMJw-11">
+          <mxGeometry x="167" y="10" width="50" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="-oepTnSFtZujDYaPxMJw-13" value="&lt;div&gt;Read from DHT22&lt;/div&gt;&lt;div&gt;&lt;br&gt;&lt;/div&gt;&lt;div&gt;1. Temperature&lt;/div&gt;&lt;div&gt;2. Humidity&lt;/div&gt;&lt;div&gt;3. Light&lt;/div&gt;" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#a20025;fontColor=#ffffff;strokeColor=#6F0000;" vertex="1" parent="-oepTnSFtZujDYaPxMJw-11">
+          <mxGeometry x="25" y="30" width="120" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="-oepTnSFtZujDYaPxMJw-14" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" edge="1" parent="-oepTnSFtZujDYaPxMJw-11" source="-oepTnSFtZujDYaPxMJw-15" target="-oepTnSFtZujDYaPxMJw-17">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="-oepTnSFtZujDYaPxMJw-15" value="Send LoRa JSON payload to master-node" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#a20025;fontColor=#ffffff;strokeColor=#6F0000;" vertex="1" parent="-oepTnSFtZujDYaPxMJw-11">
+          <mxGeometry x="25" y="150" width="175" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="-oepTnSFtZujDYaPxMJw-16" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;entryX=0.346;entryY=-0.014;entryDx=0;entryDy=0;entryPerimeter=0;" edge="1" parent="-oepTnSFtZujDYaPxMJw-11" source="-oepTnSFtZujDYaPxMJw-13" target="-oepTnSFtZujDYaPxMJw-15">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="-oepTnSFtZujDYaPxMJw-17" value="wait 1 min" style="whiteSpace=wrap;html=1;rounded=0;fillColor=#f0a30a;fontColor=#000000;strokeColor=#BD7000;" vertex="1" parent="-oepTnSFtZujDYaPxMJw-11">
+          <mxGeometry x="52.5" y="250" width="120" height="60" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
