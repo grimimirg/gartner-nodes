@@ -1,20 +1,21 @@
+#include <FS.h>
 #include <SPI.h>
 #include <LoRa.h>
 #include <WiFi.h>
-#include <WebServerule.h>
+#include <WebServer.h>
 #include <ArduinoJson.h>
 #include <LittleFS.h>
 #include <vector>
 
 using std::vector;
 
-/* ─────────────────────────────
+/* --------------------------------
    Pinout & Constants
-   ───────────────────────────── */
+   -------------------------------- */
 #define LORA_SS    18
 #define LORA_RST   14
 #define LORA_DIO0  26
-#define LORA_FREQ  868E6          // EU band
+#define LORA_FREQ  868E6           // EU band
 
 const char* WIFI_SSID = "[change_it]";
 const char* WIFI_PASS = "[change_it]";
@@ -31,13 +32,13 @@ const char INVALID_API[]  = "{\"error\":\"Invalid API\"}";
 const char INVALID_JSON[] = "{\"error\":\"Invalid JSON\"}";
 const char MISSING_BODY[] = "{\"error\":\"Missing body\"}";
 
-/* scheduler */
+/* Scheduler */
 unsigned long lastCheck = 0;
 const unsigned long checkInterval = 10UL * 60UL * 1000UL;  // 10 minutes
 
-/* ─────────────────────────────
+/* --------------------------------
    Models
-   ───────────────────────────── */
+   -------------------------------- */
 struct ProgramRule {
   String   sensor;
   String   zone;
@@ -49,23 +50,15 @@ struct ProgramRule {
   String   terminationCondition;
 };
 
-struct SensorStats {
-  float temperature = 0;
-  float humidity    = 0;
-  float light       = 0;
-  unsigned long timestamp = 0;
-};
-
-/* ─────────────────────────────
+/* --------------------------------
    Globals
-   ───────────────────────────── */
-SensorStats currentStats;
+   -------------------------------- */
 WebServer server(80);
 vector<ProgramRule> ruleList;
 
-/* ─────────────────────────────
+/* --------------------------------
    SETUP
-   ───────────────────────────── */
+   -------------------------------- */
 void setup() {
   Serial.begin(115200);
 
@@ -75,7 +68,6 @@ void setup() {
   connectToWifi();
 
   ruleList.clear();
-  // initially mark as executed
   markProgramUpdated(false);
 
   server.on("/saveProgram", HTTP_POST, saveProgram);
@@ -86,9 +78,9 @@ void setup() {
   Serial.println("Web server started!");
 }
 
-/* ─────────────────────────────
+/* --------------------------------
    LOOP
-   ───────────────────────────── */
+   -------------------------------- */
 void loop() {
   server.handleClient();
 
@@ -101,9 +93,9 @@ void loop() {
   }
 }
 
-/* ─────────────────────────────
+/* --------------------------------
    FUNCTIONS
-   ───────────────────────────── */
+   -------------------------------- */
 void onSensorPacketReceived(int packetSize) {
   if (packetSize == 0) return;
   String payload;
@@ -116,20 +108,30 @@ void onSensorPacketReceived(int packetSize) {
 }
 
 void onSensorJson(const String& payload) {
-  // check wether the packet is addressed to "master-node"
-  if (incoming.indexOf("master-node") != -1) {
+  // Check whether the packet is addressed to "master-node"
+  if (payload.indexOf("master-node") == -1) return;
 
-    StaticJsonDocument<128> doc;
-    if (deserializeJson(doc, payload)) {
-      Serial.println("Sensor JSON parse error!");
-      return;
-    }
-
-    currentStats.timestamp   = millis();
-    currentStats.temperature = doc["temperature"] | currentStats.temperature;
-    currentStats.humidity    = doc["humidity"]    | currentStats.humidity;
-    currentStats.light       = doc["light"]       | currentStats.light;
+  StaticJsonDocument<128> doc;
+  if (deserializeJson(doc, payload)) {
+    Serial.println("Sensor JSON parse error!");
+    return;
   }
+
+  File currentMeasuresFile = LittleFS.open("/current-measures.json", FILE_WRITE);
+  if (!currentMeasuresFile) {
+    Serial.println("Failed opening '/current-measures.json'");
+    return;
+  }
+
+  // Build JSON string with consistent keys
+  String jsonPayload = String("{") \
+             + "\"temperature\":" + String(doc["temperature"], 2) + ","  \
+             + "\"humidity\":"    + String(doc["humidity"],    2) + ","  \
+             + "\"light\":"       + String(doc["light"],       2)  \
+             + "}";
+
+  currentMeasuresFile.print(jsonPayload);
+  currentMeasuresFile.close();
 }
 
 void saveProgram() {
@@ -183,17 +185,29 @@ void executeProgram() {
 
   ruleList = buildRuleList(doc);
   checkRulesAndSendToNodes(ruleList);
-
-  // after execution, reset flag
   markProgramUpdated(false);
 }
 
 void checkRulesAndSendToNodes(const vector<ProgramRule>& rules) {
+  File file = LittleFS.open("/current-measures.json", "r");
+  if (!file) {
+    Serial.println("Cannot open current-measures.json");
+    return;
+  }
+
+  StaticJsonDocument<256> doc;
+  if (deserializeJson(doc, file).failed()) {
+    Serial.println("JSON parse error");
+    file.close();
+    return;
+  }
+  file.close();
+
   for (const auto& rule : rules) {
     float actual = 0;
-    if      (rule.sensor == "temperature") actual = currentStats.temperature;
-    else if (rule.sensor == "humidity")    actual = currentStats.humidity;
-    else if (rule.sensor == "light")       actual = currentStats.light;
+    if      (rule.sensor == "temperature") actual = doc["temperature"] | 0.0f;
+    else if (rule.sensor == "humidity")    actual = doc["humidity"]    | 0.0f;
+    else if (rule.sensor == "light")       actual = doc["light"]       | 0.0f;
     
     bool match = false;
     if      (rule.op == ">")  match = actual >  rule.value;
@@ -204,9 +218,7 @@ void checkRulesAndSendToNodes(const vector<ProgramRule>& rules) {
     else if (rule.op == "!=") match = actual != rule.value;
     
     if (match) {
-      // Build full program JSON payload
       StaticJsonDocument<256> payloadDoc;
-
       payloadDoc["zone"]     = rule.actionZone;
       payloadDoc["command"]  = rule.command;
       payloadDoc["duration"] = rule.durationMs;
@@ -216,11 +228,12 @@ void checkRulesAndSendToNodes(const vector<ProgramRule>& rules) {
       }
 
       String loRaPayload;
-
       serializeJson(payloadDoc, loRaPayload);
       sendLoRaCommand(rule.actionZone, loRaPayload);
+
       Serial.printf("Rule sent: %s %s %s %.1f\n",
-                    rule.sensorule.c_str(), rule.op.c_str(), rule.actionZone.c_str(), rule.value);
+                    rule.sensor.c_str(), rule.op.c_str(),
+                    rule.actionZone.c_str(), rule.value);
     }
   }
 }
@@ -232,9 +245,9 @@ void sendLoRaCommand(const String& nodeId, const String& payload) {
   Serial.printf("Successfully sent payload to %s: %s\n", nodeId.c_str(), payload.c_str());
 }
 
-//----------------------------------------------------------------------------------
-/* Utilities */
-//----------------------------------------------------------------------------------
+/* --------------------------------
+   Utilities
+   -------------------------------- */
 void prepareFS() {
   if (!LittleFS.begin(true)) {
     Serial.println("LittleFS mount failed");
@@ -292,25 +305,25 @@ bool isProgramUpdated() {
 
 vector<ProgramRule> buildRuleList(const JsonDocument& doc) {
   vector<ProgramRule> rules;
-  // Extract termination condition JSON once
   String termJson;
   if (doc.containsKey("terminationCondition")) {
     serializeJson(doc["terminationCondition"], termJson);
   }
 
-  JsonArray  conds = doc["conditions"].as<JsonArray>();
+  JsonArray conds = doc["conditions"].as<JsonArray>();
   JsonObject act   = doc["action"];
-  uint32_t   durMs = act["duration"]["value"].as<uint32_t>() * 1000UL;
+  uint32_t durMs = act["duration"]["value"].as<uint32_t>() * 1000UL;
+
   for (JsonObject c : conds) {
     ProgramRule rule;
-    rule.sensor                = c["sensor"].as<String>();
-    rule.zone                  = c["zone"].as<String>();
-    rule.op                    = c["operator"].as<String>();
-    rule.value                 = c["value"].as<float>();
-    rule.command               = act["command"].as<String>();
-    rule.actionZone            = act["zone"].as<String>();
-    rule.durationMs            = durMs;
-    rule.terminationCondition  = termJson;
+    rule.sensor               = c["sensor"].as<String>();
+    rule.zone                 = c["zone"].as<String>();
+    rule.op                   = c["operator"].as<String>();
+    rule.value                = c["value"].as<float>();
+    rule.command              = act["command"].as<String>();
+    rule.actionZone           = act["zone"].as<String>();
+    rule.durationMs           = durMs;
+    rule.terminationCondition = termJson;
     rules.push_back(std::move(rule));
   }
   return rules;
