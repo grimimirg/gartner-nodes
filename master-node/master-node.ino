@@ -182,13 +182,13 @@ void executeProgram() {
   }
 
   ruleList = buildRuleList(doc);
-  checkRules(ruleList);
+  checkRulesAndSendToNodes(ruleList);
 
   // after execution, reset flag
   markProgramUpdated(false);
 }
 
-void checkRules(const vector<ProgramRule>& rules) {
+void checkRulesAndSendToNodes(const vector<ProgramRule>& rules) {
   for (const auto& rule : rules) {
     float actual = 0;
     if      (rule.sensor == "temperature") actual = currentStats.temperature;
