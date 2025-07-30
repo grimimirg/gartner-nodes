@@ -141,6 +141,10 @@ This project contains firmware for two types of nodes based on Arduino/ESP32 and
 
 ![Station Node Flow Diagram](doc/station-node.jpg)
 
+### Master Node Flow
+
+![Gartner overview (with Web-App)](doc/gartner_schema.jpg)
+
 ---
 
 ## Customizations
