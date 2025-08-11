@@ -32,7 +32,7 @@ This project contains firmware for two types of nodes based on Arduino/ESP32 and
   - 2× Arduino or ESP32-based boards (3.3 V compatible)
   - 2× LoRa SX1276/78 radio modules
   - 1× DHT22 temperature & humidity sensor
-  - 1× Photoresistor (LDR) + fixed resistor (≈10 kΩ)
+  - 1× Photoresistor (LDR)
   - Jumper wires and power supply
 
 ---
@@ -149,7 +149,7 @@ This project contains firmware for two types of nodes based on Arduino/ESP32 and
 
 ## Customizations
 
-- **Frequency:** change `LORA_FREQ` to `915E6` for the US band.
+- **Frequency:** change `LORA_FREQ` to `433E6` for the EU band. (916 for US)
 - **Send interval:** modify the `delay(60000)` in `station-node`.
 - **Payload format:** switch to CSV, binary, or a more compact JSON as needed.
 
