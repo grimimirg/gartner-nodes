@@ -1,0 +1,59 @@
+# Arduino IDE build files
+*.tmp
+*.bak
+*.c.o
+*.cpp.o
+*.elf
+*.hex
+*.map
+*.sym
+*.lss
+*.eep
+*.d
+
+# PlatformIO
+.pio/
+.vscode/
+*.pio
+
+# IDE specific files
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Build directories
+build/
+dist/
+out/
+
+# other directories
+.idea/
+
+# Log files
+*.log
+
+# Environment files
+.env
+.env.local
+
+# Dependency directories
+node_modules/
+
+# Temporary files
+*.temp
+*.cache
+
+# Backup files
+*.orig
+*.rej
+
+# IDE configuration files (keep .idea if you want to share IDE settings)
+# .idea/
+
+# OS generated files
+.DS_Store?
+ehthumbs.db
+Icon?
+Thumbs.db
