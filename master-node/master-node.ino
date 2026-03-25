@@ -112,22 +112,24 @@ void onSensorJson(const String& payload) {
   if (payload.indexOf("master-node") == -1) return;
 
   StaticJsonDocument<128> doc;
-  if (deserializeJson(doc, payload)) {
-    Serial.println("Sensor JSON parse error!");
+  DeserializationError err = deserializeJson(doc, payload);
+  if (err) {
+    Serial.print("Sensor JSON parsing error: ");
+    Serial.println(err.c_str());
     return;
   }
 
   File currentMeasuresFile = LittleFS.open("/current-measures.json", FILE_WRITE);
   if (!currentMeasuresFile) {
-    Serial.println("Failed opening '/current-measures.json'");
+    Serial.println("Failed to open '/current-measures.json'");
     return;
   }
 
   // Build JSON string with consistent keys
   String jsonPayload = String("{") \
-             + "\"temperature\":" + String(doc["temperature"], 2) + ","  \
-             + "\"humidity\":"    + String(doc["humidity"],    2) + ","  \
-             + "\"light\":"       + String(doc["light"],       2)  \
+             + "\"temperature\":" + String(doc["temperature"].as<float>(), 2) + ","  \
+             + "\"humidity\":"    + String(doc["humidity"].as<float>(), 2) + ","  \
+             + "\"lightPercent\":"       + String(doc["lightPercent"].as<float>(), 2)  \
              + "}";
 
   currentMeasuresFile.print(jsonPayload);
@@ -156,7 +158,7 @@ void saveProgram() {
 void persistProgram(const String& jsonProgram) {
   File programFile = LittleFS.open("/program.json", FILE_WRITE);
   if (!programFile) {
-    Serial.println("Failed opening '/program.json'");
+    Serial.println("Failed to open '/program.json'");
     return;
   }
 
@@ -191,13 +193,13 @@ void executeProgram() {
 void checkRulesAndSendToNodes(const vector<ProgramRule>& rules) {
   File file = LittleFS.open("/current-measures.json", "r");
   if (!file) {
-    Serial.println("Cannot open current-measures.json");
+    Serial.println("Cannot open 'current-measures.json'");
     return;
   }
 
   StaticJsonDocument<256> doc;
   if (deserializeJson(doc, file).failed()) {
-    Serial.println("JSON parse error");
+    Serial.println("JSON parsing error");
     file.close();
     return;
   }
@@ -207,7 +209,7 @@ void checkRulesAndSendToNodes(const vector<ProgramRule>& rules) {
     float actual = 0;
     if      (rule.sensor == "temperature") actual = doc["temperature"] | 0.0f;
     else if (rule.sensor == "humidity")    actual = doc["humidity"]    | 0.0f;
-    else if (rule.sensor == "light")       actual = doc["light"]       | 0.0f;
+    else if (rule.sensor == "lightPercent") actual = doc["lightPercent"]       | 0.0f;
     
     bool match = false;
     if      (rule.op == ">")  match = actual >  rule.value;
@@ -259,7 +261,7 @@ void prepareFS() {
 void setupLoRa() {
   LoRa.setPins(LORA_SS, LORA_RST, LORA_DIO0);
   if (!LoRa.begin(LORA_FREQ)) {
-    Serial.println("LoRa init failed");
+    Serial.println("LoRa initialization failed");
     while (true) delay(1000);
   }
   Serial.println("LoRa ready!");
